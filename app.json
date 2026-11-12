@@ -1,0 +1,147 @@
+{
+  "name": "progettai-commerce",
+  "version": "1.1.0",
+  "displayName": "ProgettAI Commerce",
+  "description": "Discover ProgettAI business projects and shop their catalogs and carts through natural conversation. Learn more and set up: https://progettai.ai/crew",
+  "author": "progettai",
+  "minKiroCrewVersion": "0.11.0",
+  "tags": ["commerce", "shopping", "ucp", "a2a"],
+  "iconPath": "assets/icon.png",
+  "agents": ["agents/commerce-agent.json"],
+  "skills": ["skills/ucp-interaction"],
+  "mcpServers": {
+    "progettai-bridge": {
+      "command": "python",
+      "args": ["mcp/progettai-bridge/launch.py"]
+    }
+  },
+  "dependencies": {
+    "commands": ["node"]
+  },
+  "backend": {
+    "type": "node",
+    "entryPoint": "backend/dist/index.mjs",
+    "port": "auto",
+    "healthCheck": "/health",
+    "routes": "/apps/progettai-commerce/api"
+  },
+  "ui": {
+    "entry": "dist/index.mjs",
+    "pages": [
+      {
+        "route": "/apps/progettai-commerce",
+        "label": "Commerce",
+        "icon": "ShoppingBag",
+        "iconUrl": "ui/assets/sidebar-icon.svg"
+      }
+    ]
+  },
+  "permissions": {
+    "network": true,
+    "storage": true,
+    "api": ["/apps/progettai-commerce/api"],
+    "memory": "",
+    "cron": false,
+    "spawn": false
+  },
+  "setup": {
+    "configSchema": {
+      "type": "object",
+      "required": ["keyFile", "keyId", "projectId"],
+      "properties": {
+        "keyFile": {
+          "type": "string",
+          "title": "Signing key file",
+          "description": "Absolute path to the ECDSA P-256 private key file you downloaded from the ProgettAI console (PKCS#8 PEM, starts with -----BEGIN PRIVATE KEY-----). Use it as-is; no conversion is needed. The key never leaves this machine, and the console cannot re-issue it — keep a backup."
+        },
+        "keyId": {
+          "type": "string",
+          "title": "Key ID",
+          "description": "The Key ID shown next to that key in your ProgettAI account settings, copied verbatim. It must be the key your project currently has selected — if you rotate keys, update this and the key file together."
+        },
+        "projectId": {
+          "type": "string",
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "title": "Project ID",
+          "description": "Your 26-character ProgettAI project ULID."
+        },
+        "bridgeUrl": {
+          "type": "string",
+          "default": "https://api.progettai.ai/v1/mcp",
+          "title": "Bridge URL",
+          "description": "MCP Bridge endpoint. Must match the bridge's own public URL exactly, including scheme and path."
+        },
+        "profileUrl": {
+          "type": "string",
+          "title": "UCP profile URL (advanced)",
+          "description": "Override only if you host your UCP client profile outside ProgettAI. Defaults to https://<bridge-origin>/projects/<projectId>/.well-known/ucp-client."
+        },
+        "frontendUrl": {
+          "type": "string",
+          "default": "https://progettai.ai",
+          "title": "Frontend URL (advanced)",
+          "description": "ProgettAI web app origin used to build the authenticated cart page link (<frontendUrl>/cart) that the bridge gives you after a Shopify cart is created. Must be an HTTPS origin: no username or password, no path other than an optional trailing slash, and no query or fragment. The value is normalized to its origin, so a trailing slash and an explicit :443 are dropped while a non-default port is kept. Defaults to https://progettai.ai. Read once at startup, so a change takes effect on the next restart."
+        },
+        "logLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info",
+          "title": "Log level",
+          "description": "Logs go to stderr and never include key material or request bodies."
+        },
+        "imageMode": {
+          "type": "string",
+          "enum": ["remote", "inline", "off"],
+          "default": "remote",
+          "title": "Card image mode",
+          "description": "How catalog product-card images are resolved in the 'widget' render mode. 'remote' (default) points each card's <img> at the business CDN directly under the declared image resource domains, so the browser fetches the image itself — this discloses the ucp-client's IP address and user agent to the business CDN. 'inline' has the bridge fetch each image server-side and embed a small card-sized data: copy, so nothing is disclosed to the business CDN but every image passes through the bridge. 'off' emits no <img> and renders the monogram placeholder on every card. Read once at startup, so a change takes effect on the next restart."
+        },
+        "imageResourceDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["https://cdn.shopify.com"],
+          "title": "Image resource domains",
+          "description": "Allowlist of business CDN origins the 'remote' image mode may load card images from, advertised as the widget's CSP resource domains. Each entry uses the shape https://[*.]host[:port] — an https origin, an optional leading *. wildcard for one subdomain level, and an optional port (for example https://cdn.example.com or https://*.images.example.com:8443). Required and must be non-empty when imageMode is 'remote'; otherwise every card renders as a placeholder. Ignored by the 'inline' and 'off' modes. Read once at startup, so a change takes effect on the next restart."
+        },
+        "imageFetchTimeoutMs": {
+          "type": "number",
+          "default": 4000,
+          "title": "Image fetch timeout (ms)",
+          "description": "Wall-clock timeout for fetching a single product image. A slower source is abandoned and the card falls back to the placeholder. Must be a positive number."
+        },
+        "imageFetchMaxBytes": {
+          "type": "number",
+          "default": 5000000,
+          "title": "Image fetch max bytes",
+          "description": "Maximum response size, in bytes, read for a single product image fetch. A larger source is abandoned and the card falls back to the placeholder. Must be a positive number."
+        },
+        "imageCardMaxEdgePx": {
+          "type": "number",
+          "default": 270,
+          "title": "Card image max edge (px)",
+          "description": "Maximum edge length, in pixels, of the card-sized image derived for each catalog card. Matches the catalog card image box height ceiling. Must be a positive number."
+        },
+        "imageCardMaxBytes": {
+          "type": "number",
+          "default": 40000,
+          "title": "Card image max bytes",
+          "description": "Per-card size ceiling, in bytes, for the derived card image so the assembled widget stays within budget. A card image that cannot meet this budget falls back to the placeholder. Must be a positive number."
+        },
+        "imageMaxPerInvocation": {
+          "type": "number",
+          "default": 12,
+          "title": "Max images per invocation",
+          "description": "Maximum number of product images resolved per catalog search. Cards beyond this cap fall back to the placeholder so a search with many uncached images does not extend the tool call unboundedly. Must be a positive number."
+        },
+        "a2aStreaming": {
+          "type": "boolean",
+          "default": true,
+          "title": "A2A streaming delivery",
+          "description": "Request incremental A2A message/stream delivery from businesses that support it; falls back to buffered message/send automatically. Default on. Read once at startup, so a change takes effect on the next restart."
+        }
+      }
+    }
+  }
+}
